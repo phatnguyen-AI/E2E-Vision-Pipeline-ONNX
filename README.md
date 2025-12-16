@@ -1,4 +1,4 @@
-# Image Classification Project — Portfolio for AI Engineer Applications
+# End-to-End Image Classification Pipeline
 
 ## Project Overview
 
