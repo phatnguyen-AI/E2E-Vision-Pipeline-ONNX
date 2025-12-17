@@ -10,10 +10,10 @@ This project showcases skills typically expected from an AI Engineer: data engin
 - **Live Web UI:** [https://image-classification-bjbd.onrender.com](https://image-classification-bjbd.onrender.com) (Completed Web UI for recruiters to test)
 
 ### Video Walkthrough
-<video controls width="100%">
+[<video controls width="100%">
   <source src="images/demo_video.mp4" type="video/mp4">
   Your browser does not support the video tag.
-</video>
+</video>](https://github.com/user-attachments/assets/1b0c08d2-3170-4a79-837a-b906de459a51)
 
 
 ## Key Highlights / Skills Demonstrated
