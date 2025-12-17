@@ -11,7 +11,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-API_URL = os.getenv("API_URL", "https://e2e-vision-pipeline-onnx-backend.onrender.com/")
+API_URL = os.getenv("API_URL", "https://e2e-vision-pipeline-onnx-backend.onrender.com/predict")
 
 # --- 2. CSS TÙY CHỈNH (QUAN TRỌNG ĐỂ TĂNG CỠ CHỮ & MÀU SẮC) ---
 st.markdown("""
