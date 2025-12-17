@@ -6,6 +6,12 @@ This repository implements an end-to-end image classification pipeline built for
 
 This project showcases skills typically expected from an AI Engineer: data engineering, model design and training, reproducibility, model optimization and exporting, inference deployment, and clear documentation for handoff.
 
+## Live Demo & Video
+- **Live Web UI:** [https://image-classification-bjbd.onrender.com](https://image-classification-bjbd.onrender.com) (Completed Web UI for recruiters to test)
+
+### Video Walkthrough
+<video controls src="images/Screen Recording 2025-12-17 085752.mp4" width="100%"></video>
+
 ## Key Highlights / Skills Demonstrated
 - **Data Pipeline:** Data ingestion, cleaning, augmentation and dataset splitting implemented in `src/data`.
 - **Modeling:** Custom training loop and model definitions using PyTorch (`src/models`). Transfer learning with `resnet50` backbone and experiment variations.
