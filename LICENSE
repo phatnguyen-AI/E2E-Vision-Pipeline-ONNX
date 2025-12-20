@@ -1,0 +1,41 @@
+MIT License
+
+Copyright (c) 2025 Phat Nguyen
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense,
+and/or sell copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+**GIẢI THÍCH CHO NGƯỜI DÙNG**
+
+Phần mềm này được phát triển cho mục đích nghiên cứu và học tập. Để sử dụng trong môi trường lâm sàng hoặc thương mại, vui lòng:
+
+1. Xem xét và kiểm định kỹ kết quả chẩn đoán trước khi áp dụng vào thực tế
+2. Không sử dụng phần mềm này làm công cụ chẩn đoán y tế duy nhất
+3. Tham khảo ý kiến chuyên gia y tế có chuyên môn về da liễu
+4. Đảm bảo tuân thủ các quy định về bảo mật thông tin y tế tại Việt Nam
+
+**TRÁCH NHIỆM PHÁP LÝ**
+
+Tác giả không chịu trách nhiệm cho bất kỳ thiệt hại nào phát sinh từ việc sử dụng phần mềm này, bao gồm nhưng không giới hạn:
+- Sai sót chẩn đoán y tế
+- Mất dữ liệu hoặc thông tin cá nhân
+- Thiệt hại tài chính hoặc tài sản
+
+Bằng cách sử dụng phần mềm này, bạn đồng ý với các điều khoản nêu trên.
