@@ -150,7 +150,7 @@ Mô hình được huấn luyện trên bộ dữ liệu ISIC Archive với các
 
 ## Đánh giá hiệu suất
 
-- **Độ chính xác tổng thể**: 8181
+- **Độ chính xác tổng thể**: 0.8181
 - **F1-Score**: 0.8181
 - **Precision trung bình**: 0.822
 - **Recall trung bình**: 0.8181
