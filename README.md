@@ -1,179 +1,245 @@
-# E2E Vision Pipeline ONNX - Ứng dụng Chẩn đoán Bệnh lý Da liễu
+# E2E Vision Pipeline ONNX
 
-## Tổng quan
+End-to-end dermatological image classification system. Covers the full ML lifecycle from raw data ingestion through model training, ONNX export, REST API serving, and a production-ready web frontend -- all containerized and deployable on commodity hardware.
 
-Đây là một AIAI chẩn đoán bệnh lý da liễu đầu cuối (End-to-End) sử dụng mô hình ONNX được tối ưu hóa cho hiệu suất cao. Hệ thống có khả năng phân loại các loại bệnh lý da liễu phổ biến với độ chính xác tương đối cao, hỗ trợ các chuyên gia y tế trong quá trình chẩn đoán.
+**Live demo:** [e2e-vision-pipeline-onnx.vercel.app](https://e2-e-vision-pipeline-onnx.vercel.app/)
 
-## Tính năng chính
-
-- **Mô hình Deep Learning**: Sử dụng ResNet50 được huấn luyện trên bộ dữ liệu ISIC (International Skin Imaging Collaboration)
-- **Tối ưu hóa ONNX**: Mô hình được chuyển đổi sang định dạng ONNX để tăng tốc độ suy luận
-- **API FastAPI**: Cung cấp endpoint RESTful để tích hợp dễ dàng với các ứng dụng khác
-- **Giao diện Web Responsive**: Giao diện người dùng hiện đại, thân thiện với mọi thiết bị
-- **Hỗ trợ đa ngôn ngữ**: Tên bệnh lý được hiển thị bằng tiếng Việt
-
-## Demo
-
-- **Link Test Deployment**: [https://e2-e-vision-pipeline-onnx.vercel.app/](https://e2-e-vision-pipeline-onnx.vercel.app/)
-- **Video Demo**
 https://github.com/user-attachments/assets/404fa155-dccc-4df5-95a1-dd1e0801e463
 
-## Cấu trúc dự án
+---
+
+## Problem Statement
+
+Skin lesion classification is a high-stakes, class-imbalanced problem. The ISIC 2019 dataset contains eight diagnostic categories with severe long-tail distribution (e.g., Nevus dominates at >60% of samples while Dermatofibroma accounts for <1%). A naive model will over-predict majority classes and fail on the clinically critical minority ones (Melanoma, SCC).
+
+This project addresses that challenge end-to-end: from data balancing and augmentation strategy through optimized inference, demonstrating production-oriented thinking at every stage.
+
+---
+
+## Architecture Overview
+
+```
+Raw Data (Kaggle ISIC 2019)
+    |
+    v
+[Data Pipeline] -- download, stratified split (70/15/15), class-aware augmentation
+    |
+    v
+[Training Pipeline] -- ResNet50 (ImageNet V2 pretrained), two-phase fine-tuning
+    |
+    v
+[Model Export] -- PyTorch -> ONNX (opset 12, dynamic batch, constant folding)
+    |
+    v
+[Serving Layer] -- FastAPI + ONNX Runtime (CPU), Docker container
+    |
+    v
+[Frontend] -- Vanilla HTML/CSS/JS, drag-and-drop image upload, responsive layout
+```
+
+---
+
+## Key Technical Decisions
+
+### Class Imbalance Strategy
+
+The dataset exhibits extreme imbalance across 8 classes. Rather than applying uniform oversampling, the preprocessing pipeline uses a **tiered augmentation strategy** with class-specific multipliers:
+
+| Class | Samples (approx.) | Augmentation Factor | Transform Tier |
+|-------|-------------------|---------------------|----------------|
+| NV    | ~12,000           | 0x (none)           | --             |
+| MEL   | ~4,500            | 0.2x                | Light          |
+| BCC   | ~3,300            | 0.5x                | Light          |
+| BKL   | ~2,600            | 1.0x                | Medium         |
+| AK    | ~800              | 4.0x                | Medium         |
+| SCC   | ~600              | 6.0x                | Heavy          |
+| VASC  | ~250              | 13.0x               | Heavy          |
+| DF    | ~230              | 14.0x               | Heavy          |
+
+Transform tiers escalate from simple flips (Light) through rotation + color jitter (Medium) to affine transforms + aggressive color perturbation (Heavy). This prevents the model from memorizing augmented copies of rare classes while still providing meaningful training signal.
+
+Inverse-frequency class weights are additionally applied at the loss function level.
+
+### Two-Phase Training
+
+Training is split into two phases to maximize transfer learning effectiveness:
+
+**Phase 1 (52 epochs) -- Feature Adaptation**
+- Backbone frozen; only the custom classification head trains
+- Loss: Cross-Entropy with class weights + label smoothing (0.1)
+- At epoch 8, `layer3` and `layer4` are unfrozen with discriminative learning rates (backbone: 1e-5, head: 1e-4)
+- BatchNorm layers in unfrozen blocks remain in eval mode to preserve pretrained statistics
+
+**Phase 2 (50 epochs) -- Full Fine-Tuning**
+- Loads best checkpoint from Phase 1
+- Switches loss to Focal Loss (gamma=2.0) with class weights to further address hard examples in minority classes
+- All parameters trainable; AdamW with weight decay 1e-3
+
+### Model Architecture
+
+- Base: ResNet50 (ImageNet1K_V2 weights)
+- Custom head: `Dropout(0.4) -> Linear(2048, 1024) -> LeakyReLU -> Dropout(0.4) -> Linear(1024, 8)`
+- The double-dropout design is intentional: the first layer regularizes the high-dimensional backbone features; the second prevents co-adaptation in the compressed representation
+
+### ONNX Export
+
+The trained PyTorch model is exported to ONNX format with:
+- Opset version 12
+- Dynamic batch axis for flexible serving
+- Constant folding enabled for graph optimization
+- Numerical equivalence validated (max absolute error < 1e-4 against PyTorch output)
+
+This reduces the inference dependency from PyTorch (~2GB) to ONNX Runtime (~50MB), which is critical for deploying on resource-constrained environments.
+
+---
+
+## Evaluation Results
+
+Evaluated on the held-out test split (15% of data, no augmentation applied):
+
+| Metric             | Score  |
+|--------------------|--------|
+| Accuracy           | 0.8181 |
+| Weighted F1-Score  | 0.8181 |
+| Weighted Precision | 0.8220 |
+| Weighted Recall    | 0.8181 |
+
+---
+
+## Supported Diagnostic Classes
+
+| Code | Diagnosis                         | Clinical Significance       |
+|------|-----------------------------------|-----------------------------|
+| NV   | Melanocytic Nevus                 | Benign                      |
+| MEL  | Melanoma                          | Malignant, high mortality   |
+| BCC  | Basal Cell Carcinoma              | Malignant, most common      |
+| BKL  | Benign Keratosis-like Lesion      | Benign                      |
+| AK   | Actinic Keratosis                 | Pre-malignant               |
+| SCC  | Squamous Cell Carcinoma           | Malignant                   |
+| VASC | Vascular Lesion                   | Benign, vascular origin     |
+| DF   | Dermatofibroma                    | Benign                      |
+
+---
+
+## Project Structure
 
 ```
 E2E-Vision-Pipeline-ONNX/
-├── convert/                     # Chuyển đổi mô hình PyTorch sang ONNX
-│   └── convert_onnx.py
-├── images/                      # Hình ảnh mẫu
-│   └── hard_sample.png
-├── model/                       # Mô hình đã huấn luyện
-│   ├── best_model.pt          # Mô hình PyTorch tốt nhất
-│   └── resnet50_final.onnx     # Mô hình ONNX cuối cùng
-├── notebooks/                    # Jupyter notebooks cho EDA và nghiên cứu
-│   ├── 01_eda.ipynb
-│   └── 02_model_research.ipynb
-├── requirements.txt               # Các thư viện Python cần thiết
-├── src/                         # Source code chính
-│   ├── api/                   # API FastAPI
-│   │   ├── api.py             # Endpoint API và logic xử lý
-│   │   └── requirements-backend.txt
-│   ├── data/                  # Xử lý dữ liệu
-│   │   ├── dataset.py
-│   │   ├── downloader.py
-│   │   └── preprocess.py
-│   ├── models/                 # Định nghĩa mô hình
-│   │   ├── loss.py           # Các hàm mất mát
-│   │   └── model.py          # Kiến trúc ResNet50 tùy chỉnh
-│   ├── test/                   # Kiểm thử mô hình
-│   │   ├── evaluate.py
-│   │   └── onnx_demo.py
-│   ├── train/                  # Huấn luyện mô hình
-│   │   └── train.py
-│   └── ui/                     # Giao diện người dùng
-│       ├── index.html         # Trang chính
-│       ├── style.css          # Style trang
-│       ├── script.js          # Logic JavaScript
-│       └── nginx.conf         # Cấu hình Nginx
-└── README.md                   # Tài liệu dự án
+|-- convert/
+|   +-- convert_onnx.py              # PyTorch-to-ONNX export with numerical validation
+|-- model/
+|   |-- best_model.pt                # Best PyTorch checkpoint (~98MB)
+|   +-- resnet50_final.onnx          # Exported ONNX model (~98MB)
+|-- notebooks/
+|   |-- 01_eda.ipynb                  # Exploratory data analysis
+|   +-- 02_model_research.ipynb       # Architecture experimentation
+|-- src/
+|   |-- api/
+|   |   |-- api.py                    # FastAPI application (predict endpoint, CORS, static mount)
+|   |   |-- Dockerfile                # Production container definition
+|   |   +-- requirements-backend.txt  # Minimal runtime dependencies
+|   |-- data/
+|   |   |-- dataset.py                # ISICDataset (PyTorch Dataset, multi-format image loading)
+|   |   |-- downloader.py             # Kaggle dataset downloader via kagglehub
+|   |   +-- preprocess.py             # Stratified split, tiered augmentation pipeline
+|   |-- models/
+|   |   |-- loss.py                   # Focal Loss implementation with class weight support
+|   |   +-- model.py                  # ResNet50 transfer learning setup, selective unfreezing
+|   |-- test/
+|   |   |-- evaluate.py               # ONNX model evaluation on test set
+|   |   +-- onnx_demo.py              # Batch inference CLI with per-class accuracy report
+|   +-- ui/
+|       |-- index.html                # Single-page application
+|       |-- style.css                 # Responsive layout, medical-themed design
+|       |-- script.js                 # Drag-and-drop upload, API integration
+|       +-- nginx.conf                # Production static file serving
+|-- requirements.txt                  # Full development dependencies
++-- README.md
 ```
 
-## Các lớp bệnh lý được hỗ trợ
+---
 
-| Mã | Tên bệnh bằng tiếng Việt | Mô tả |
-|-----|----------------------|--------|
-| NV | Nốt ruồi (Nevus) | Nốt ruồi là các tổn thương trên da thường lành tính |
-| MEL | U hắc tố (Melanoma) | Ung thư u hắc tố, một dạng ung thư da nguy hiểm |
-| BCC | Ung thư biểu mô tế bào đáy (Basal cell carcinoma) | Ung thư biểu mô tế bào đáy, phổ biến nhất |
-| BKL | Tăng sừng lành tính (Benign keratosis-like) | Các tổn thương tăng sừng lành tính |
-| AK | Dày sừng quang hóa (Actinic keratosis) | Tổn thương tiền ung thư do ánh nắng |
-| SCC | Ung thư biểu mô tế bào vảy (Squamous cell carcinoma) | Ung thư biểu mô tế bào vảy |
-| VASC | Tổn thương mạch máu (Vascular lesion) | Các vấn đề liên quan đến mạch máu trên da |
-| DF | U sợi da (Dermatofibroma) | U sợi da, một tổn thương da lành tính |
+## Getting Started
 
-## Cài đặt
-
-### Yêu cầu hệ thống
+### Prerequisites
 
 - Python 3.8+
-- PyTorch 2.0+
-- ONNX Runtime 1.15+
-- 8GB RAM (tối thiểu)
-- CPU hỗ trợ AVX (khuyến khuyến)
+- 8GB RAM minimum
+- CPU with AVX instruction support (for ONNX Runtime)
 
-### Cài đặt các thư viện
+### Setup
 
 ```bash
-# Clone repository
-git clone https://github.com/your-username/E2E-Vision-Pipeline-ONNX.git
+git clone https://github.com/phatnguyen-AI/E2E-Vision-Pipeline-ONNX.git
 cd E2E-Vision-Pipeline-ONNX
 
-# Tạo môi trường ảo
 python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+source venv/bin/activate    # Windows: venv\Scripts\activate
 
-# Cài đặt các thư viện
 pip install -r requirements.txt
 ```
 
-### Chạy ứng dụng
-
-#### Backend API
+### Run API Server
 
 ```bash
-# Chạy server phát triển
-python -m uvicorn src.api.api:app --reload --host 0.0.0.0 --port 8000
+uvicorn src.api.api:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-#### Frontend Web
+### Run with Docker
 
 ```bash
-# Chạy với Nginx (production)
-docker build -t skin-ai .
-docker run -p 8080:80 --name skin-ai-container skin-ai
-
-# Hoặc mở trực tiếp file HTML trong trình duyệt
-file:///path/to/E2E-Vision-Pipeline-ONNX/src/ui/index.html
+docker build -f src/api/Dockerfile -t skin-classifier .
+docker run -p 8000:8000 skin-classifier
 ```
 
-## API Endpoint
+---
 
-### Chẩn đoán hình ảnh
+## API Reference
 
-**Endpoint:** `POST /predict`
+### POST /predict
 
-**Headers:** `Content-Type: multipart/form-data`
+Accepts a dermatological image and returns the predicted diagnosis.
 
 **Request:**
 ```
-file: <file ảnh>
+Content-Type: multipart/form-data
+Body: file=<image file>
 ```
 
 **Response:**
 ```json
 {
   "class_code": "MEL",
-  "disease": "U hắc tố (Melanoma)",
+  "disease": "U hac to (Melanoma)",
   "confidence": 0.923456
 }
 ```
 
-## Huấn luyện mô hình
+---
 
-Mô hình được huấn luyện trên bộ dữ liệu ISIC Archive với các bước:
+## Technology Stack
 
-1. **Tiền xử lý dữ liệu**: Resize ảnh (224x224), chuẩn hóa theo ImageNet
-2. **Data Augmentation**: Sử dụng kỹ thuật Albumentations để tăng cường dữ liệu
-3. **Mô hình cơ sở**: ResNet50 pretrained trên ImageNet
-4. **Fine-tuning**: Thay thế lớp cuối cùng để phù hợp với 8 lớp bệnh lý
-5. **Loss Function**: Focal Loss để xử lý vấn đề mất cân bằng lớp
-6. **Optimizer**: Adam với learning rate schedule
-
-## Đánh giá hiệu suất
-
-- **Độ chính xác tổng thể**: 0.8181
-- **F1-Score**: 0.8181
-- **Precision trung bình**: 0.822
-- **Recall trung bình**: 0.8181
-
-## Công nghệ sử dụng
-
-- **PyTorch**: Framework Deep Learning
-- **ONNX**: Tối ưu hóa mô hình cho suy luận
-- **FastAPI**: Framework API hiệu suất cao
-- **Nginx**: Web server
-- **HTML/CSS/JavaScript**: Giao diện người dùng
-- **Albumentations**: Thư viện augmentation cho hình ảnh y tế
-
-## Giấy phép
-
-Dự án này được phát triển với mục đích nghiên cứu và học tập. Vui lòng tham khảo giấy phép tại file LICENSE.
-
-## Tác giả
-
-- Phat Nguyen <tanphat6406@gmail.com>
-- Liên hệ: +84 333 786 257
-- LinkedIn: [linkedin.com/in/phat-nguyen-a264722b7](https://linkedin.com/in/phat-nguyen-a264722b7)
+| Layer          | Technology                                      |
+|----------------|-------------------------------------------------|
+| Training       | PyTorch 2.0, torchvision, scikit-learn          |
+| Augmentation   | torchvision.transforms (custom SquarePad)       |
+| Loss Function  | Cross-Entropy (Phase 1), Focal Loss (Phase 2)   |
+| Model Export   | torch.onnx, ONNX Runtime                        |
+| Serving        | FastAPI, Uvicorn                                 |
+| Frontend       | HTML5, CSS3, JavaScript (vanilla)                |
+| Infrastructure | Docker, Nginx                                    |
+| Monitoring     | TensorBoard                                      |
 
 ---
 
-*Đây là dự án học thuật được phát triển cho mục đích học tập được sử dụng để chẩn đoán thay thế cho chuyên gia y tế.*
+## License
+
+MIT License. See [LICENSE](LICENSE) for full terms.
+
+This software is developed for research and educational purposes. It is not intended as a substitute for professional medical diagnosis.
+
+---
+
+## Author
+
+Phat Nguyen -- [tanphat6406@gmail.com](mailto:tanphat6406@gmail.com) -- [LinkedIn](https://linkedin.com/in/phat-nguyen-a264722b7)
